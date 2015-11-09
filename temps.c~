@@ -1,0 +1,92 @@
+#include "temps.h"
+
+#include "ecran.h"
+#include "console.h"
+#include "inttypes.h"
+#include "string.h"
+#include "cpu.h"
+#include "stdio.h"
+#include "segment.h"
+
+
+#define QUARTZ 0x1234DD
+#define CLOCKFREQ 50
+
+extern int clk;
+
+void display_clock (char c [], int Size){
+  uint16_t pos = posCurseur ();
+  uint32_t col =  pos%80;
+  uint32_t lig =  pos/80;
+  char Space = ' ';
+
+  //erases everything that is at left of the clock
+  for (uint32_t i=0; i<71; i++) {
+    ecrit_car (0, i, Space);
+    place_curseur (0,1+i);
+  }
+
+  //displays the clock
+  for (uint32_t i=0; i<Size; i++) {
+    ecrit_car (0, 70+i, c[i]);
+    place_curseur (0,71+i);
+  }
+  place_curseur(lig,col); 
+}
+
+void tic_PIT (void) {
+  outb (0x20, 0x20);
+  int sec;
+  int min;
+  int hr;
+
+  clk += 1;
+  sec = (clk/50)%60;
+  hr = sec/3600;
+  min = (sec/60)%60;
+  
+  char buffer [8];
+  int n = sprintf (buffer, "%d:%d:%d", hr, min, sec);
+  display_clock (buffer, n);
+}
+
+void init_traitant_IT(int32_t num_IT, void (*traitant)(void)) {
+
+  uint32_t poids_faibles = (uint32_t) traitant & 0b1111111111111111; //16 poids faibles de l'adresse du traitant
+  uint32_t poids_forts = (uint32_t) (traitant) >> 16 ; //16 poids forts de l'adresse du traitant
+
+  uint32_t premier_mot = ((uint32_t) KERNEL_CS << 16) + poids_faibles;
+  uint32_t deuxieme_mot = (poids_forts << 16) + (uint32_t) 0x8E00;
+
+  uint32_t *adress1 = (uint32_t *) (0x1000 + num_IT*8); //Chaque entrée ocupe 2 mots de 4 octes, donc on doit avancer de 8 en 8
+  uint32_t *adress2 = (uint32_t *) (0x1000 + num_IT*8 + 4);
+
+  *adress1 = premier_mot;
+  *adress2 = deuxieme_mot;
+}
+
+void freq_clock () {
+  outb (0x43, 0x34);
+
+  uint16_t frequence = (uint16_t) (QUARTZ/CLOCKFREQ) % 256;
+
+  uint8_t poids_faibles_frequence = frequence & 0b11111111;
+  uint8_t poids_forts_frequence = frequence >> 8;
+
+  outb (poids_faibles_frequence, 0x40);
+  outb (poids_forts_frequence, 0x40);
+}
+
+void masque_IRQ(uint32_t num_IRQ, bool masque) {
+  uint8_t valeur_masque = inb (0x21); 
+  uint8_t valeur;
+
+  if (masque) {
+    valeur = (0x1 << num_IRQ) | valeur_masque;
+  }
+  else {
+    valeur = ~(0x1 << num_IRQ) & valeur_masque;
+  }
+  
+  outb (valeur, 0x21);
+}

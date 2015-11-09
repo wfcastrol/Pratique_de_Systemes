@@ -1,0 +1,209 @@
+#include "Test.h"
+#include "ecran.h"
+#include "console.h"
+#include "inttypes.h"
+#include "string.h"
+#include "cpu.h"
+#include "stdio.h"
+#include "segment.h"
+
+#define QUARTZ 0x1234DD
+#define CLOCKFREQ 50
+
+extern int clk;
+
+/*uint16_t *ptr_mem(uint32_t lig, uint32_t col) {
+  return (uint16_t*) (0xB8000 + 2*(lig*80+col));
+}
+
+void ecrit_car(uint32_t lig, uint32_t col, char c) {
+  uint16_t* dirMem = ptr_mem(lig, col);
+  uint8_t ASCIIc = (uint8_t) c;
+  uint8_t format = 14;
+  uint16_t ecrit = (format << 8) + ASCIIc;
+  *dirMem = ecrit;
+  col += 1;
+  place_curseur(lig, col);
+}
+#include "console.h"
+void place_curseur(uint32_t lig, uint32_t col) {
+  if (col > 79) {
+    col = 0;
+    lig += 1;
+  }
+  if (lig > 24) {
+    defilement();
+  }
+  uint16_t pos = (uint16_t) (col + (lig * 80));
+  uint8_t posBasse = pos & 0b11111111;
+  uint8_t posHaute = (pos) >> 8;
+  uint8_t partBasse = (uint8_t) 0x0F;
+  uint8_t partHaute = (uint8_t) 0x0E;
+  uint16_t portCommande = (uint16_t) 0x3D4;
+  uint16_t portDonnees = (uint16_t) 0x3D5;
+
+  outb (partBasse, portCommande);
+  outb (posBasse, portDonnees);
+  outb (partHaute, portCommande);
+  outb (posHaute, portDonnees);
+}
+
+void efface_ecran(void) {
+  for (uint32_t i=0; i<25; i++) {
+    for (uint32_t j=0; j<80; j++) {
+      char Space = ' ';
+      ecrit_car (i, j, Space);
+    }
+  }
+  place_curseur (0,0);
+}
+
+int16_t posCurseur (void){
+  uint16_t portCommande = (uint16_t) 0x3D4;
+  uint16_t portDonnees = (uint16_t) 0x3D5;
+  uint8_t partBasse = (uint8_t) 0x0F;
+  uint8_t partHaute = (uint8_t) 0x0E;
+
+  outb (partBasse, portCommande);
+  uint8_t posBasse = inb (portDonnees);
+  outb (partHaute, portCommande);
+  uint8_t posHaute = inb (portDonnees);
+
+  uint16_t pos = (posHaute << 8) + posBasse;
+  return pos;
+}
+
+void traite_car(char c) {
+  uint16_t pos = posCurseur ();
+  uint32_t col =  pos%80;
+  uint32_t lig =  pos/80;
+  uint8_t ASCIIc = (uint8_t) c;
+  
+  if (ASCIIc > 31 && ASCIIc < 127) {
+    ecrit_car (lig, col, c);
+  }
+  
+  else if (ASCIIc == 8) {
+    if (col != 0) {
+      place_curseur (lig, col-1);
+    }
+  }
+  
+  else if (ASCIIc == 9) {
+    col +=1;
+    while (col%8 != 0) {
+      col += 1;
+    }
+    place_curseur (lig, col);
+  }
+  
+  else if (ASCIIc == 10) {
+    lig += 1;
+    col = 0;
+    place_curseur(lig,col);
+  }
+
+  else if (ASCIIc == 12) {
+    efface_ecran();
+  }
+
+  else if (ASCIIc == 13) {
+    col = 0;
+    place_curseur(lig,col);
+  }
+}
+
+void defilement(void) {
+  for (uint32_t i=2; i<25; i++) {
+    for (uint32_t j=0; j<80; j++) {
+      uint16_t* dirMem = ptr_mem(i, j);
+      char Copier = (char) *dirMem;
+      ecrit_car (i-1, j, Copier);
+      char Space = ' ';
+      ecrit_car (i, j, Space);
+    }
+  }
+  place_curseur(24, 0);
+}
+
+void console_putbytes(const char *chaine, int taille) {
+  uint16_t pos = posCurseur ();
+  uint32_t col =  pos%80;
+  uint32_t lig =  pos/80;
+  for (uint32_t i=0; i<taille; i++) {
+    ecrit_car (lig, col+i, chaine[i]);
+  }
+}
+*/
+void clock (char c [], int Size){
+  uint16_t pos = posCurseur ();
+  uint32_t col =  pos%80;
+  uint32_t lig =  pos/80;
+  for (uint32_t i=0; i<Size; i++) {
+    ecrit_car (0, 70+i, c[i]);
+  }
+  place_curseur(lig,col); 
+}
+
+void tic_PIT (void) {
+  int16_t portCommande = 0x20;
+  int8_t instruction = 0x20;
+  outb (instruction, portCommande);
+  int sec;
+  int min;
+  int hr;
+
+  clk += 1;
+  sec = (clk/50)%60;
+  hr = sec/3600;
+  min = (sec/60)%60;
+  
+  char buffer [8];
+  int n = sprintf (buffer, "%d:%d:%d", hr, min, sec);
+  clock (buffer, n);
+}
+
+void init_traitant_IT(int32_t num_IT, void (*traitant)(void)) {
+  uint16_t constante = (uint16_t) 0x8E00;
+
+  uint32_t poids_faibles = (uint32_t) traitant & 0b1111111111111111; //16 poids faibles de l'adresse du traitant
+  uint32_t poids_forts = (uint32_t) (traitant) >> 16 ; //16 poids forts de l'adresse du traitant
+
+  uint32_t premier_mot = (uint32_t) (KERNEL_CS << 16) + poids_faibles;
+  uint32_t deuxieme_mot = (poids_forts << 16) + constante;
+
+  uint32_t *adress1 = (uint32_t *) (0x1000 + num_IT*8); //Chaque entrée ocupe 2 mots de 4 octes, donc on doit avancer de 8 en 8
+  uint32_t *adress2 = (uint32_t *) (0x1000 + num_IT*8 + 4);
+
+  *adress1 = premier_mot;
+  *adress2 = deuxieme_mot;
+}
+
+void freq_clock () {
+  uint8_t commande = (uint8_t) 0x34;
+  uint8_t portCommande = (uint8_t) 0x43;
+
+  outb (commande, portCommande);
+
+  uint8_t portDonnees = (uint8_t) 0x40;
+  uint16_t frequence = (uint16_t) (QUARTZ/CLOCKFREQ) % 256;
+
+  uint8_t poids_faibles_frequence = frequence & 0b11111111;
+  uint8_t poids_forts_frequence = frequence >> 8;
+
+  outb (poids_faibles_frequence, portDonnees);
+  outb (poids_forts_frequence, portDonnees);
+}
+
+void masque_IRQ(uint32_t num_IRQ, bool masque) {
+  uint8_t portDonnees = (uint8_t) 0x21;
+
+  uint8_t valeur_masque = inb (portDonnees); 
+  
+  uint8_t numPos = 1;
+
+  numPos = numPos << num_IRQ;
+  valeur_masque += numPos;
+  
+  outb (valeur_masque, portDonnees);
+}
