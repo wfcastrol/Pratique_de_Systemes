@@ -12,5 +12,6 @@ void tic_PIT (void);
 void init_traitant_IT(int32_t num_IT, void (*traitant)(void));
 void freq_clock ();
 void masque_IRQ(uint32_t num_IRQ, bool masque);
+int nbr_secondes();
 
 #endif

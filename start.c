@@ -13,24 +13,21 @@ double clk = 0;
 
 void kernel_start(void)
 { 
-  //efface_ecran;
   efface_ecran();
-  printf("Hola");
-  printf("\b");
-  printf("o");
-  
+
   //initialisation
-  /*init_traitant_IT (31, traitant_IT_32);
+  init_traitant_IT (31, traitant_IT_32);
   init_traitant_IT (32, traitant_IT_32);
   masque_IRQ(0,false);
-  freq_clock();*/
-  
-  // démasquage des interruptions externes
-  //sti();
+  freq_clock();
   
   //Initialisation des structures de processus
-  initial();
+  cree_Idle ();
+  cree_processus (&proc_creator, "Créer");
   
+  //Affichage de l'etat de chaque processus
+  affiche_etats();
+
   //demarrage du processus par defaut
   idle();
   
